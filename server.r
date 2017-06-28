@@ -1,4 +1,14 @@
-source('libraries.R') # load required libraries
+library(zoo)
+library(ggmap)
+library(rgeos)
+library(maptools)
+library(maps)
+library(rworldmap)
+library(ggplot2)
+library(scales)
+library(magrittr)
+library(DT)
+library(shinyBS) # load required libraries
 source('load_data.R') # load data and do some pre-processing
  
 # data.all: Monthly imports/exports by year, product, country
