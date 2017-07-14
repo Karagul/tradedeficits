@@ -17,6 +17,9 @@ Quick Start:
 Components of the app:
 
 User inputs: choose a range of years, comparison type, and product categories
+
 Deficit Histogram: shows the U.S. trade deficit broken out by product category over time, as a % of U.S. GDP
+
 World Map: Based on inputs, countries are color coded
+
 Data Table: % of GDP, Prior year, period over period change, and share of deficit for top trading partners
