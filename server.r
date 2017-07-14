@@ -1,49 +1,20 @@
-library(zoo)
 library(ggmap)
-library(rgeos)
-library(maptools)
 library(maps)
-library(rworldmap)
 library(ggplot2)
 library(scales)
 library(magrittr)
 library(DT)
 library(shinyBS) # load required libraries
-source('load_data.R') # load data and do some pre-processing
- 
-# data.all: Monthly imports/exports by year, product, country
-# data.gdp: (Year, GDP) US 
-# sitc: (SITC, Category)
 
-# create Country, Year level data w/ month vars inclusive of all SITC codes
-data.allproducts <- aggregate(data.all[,c(5:30)],by=list(data.all[,"Year"],data.all[,"Country"]),sum)
-names(data.allproducts)[1:2] <- c("Year","Country")
-
-# function to compute trade deficits by year
-deficits_by_year <- function (data.input, keys) {
-  data.byyear <- data.input[,c("Year",keys,"ExportsYtdDec","ImportsYtdDec")]
-  data.byyear <- transform(data.byyear, Deficit = ImportsYtdDec - ExportsYtdDec)
-  data.byyear <- data.byyear[,c("Year",keys,"Deficit")]
-  data.byyear <- reshape(data.byyear[,c("Year",keys,"Deficit")], v.names="Deficit", idvar=keys, timevar="Year", direction="wide")
-  return(data.byyear)
-}
-
-# compute trade deficits by year at product/country and country level
-data.sitc.byyear <- deficits_by_year(data.all, c("SITC","Country"))
-data.allproducts.byyear <- deficits_by_year(data.allproducts, c("Country"))
-
-# extract World totals from Country level dataset
-data.world.byyear <- data.all[,c("Year","SITC","Category","Country","ExportsYtdDec","ImportsYtdDec")]
-data.world.byyear <- merge(data.world.byyear,data.gdp,by="Year")
-data.world.byyear <- transform(data.world.byyear,ImportsPct = ImportsYtdDec / GDP)
-data.world.byyear <- transform(data.world.byyear,ExportsPct = ExportsYtdDec / GDP)
-
-data.countries.exports <- data.world.byyear[,c("SITC","Category","Year","Country","ExportsPct")]
-data.countries.imports <- data.world.byyear[,c("SITC","Category","Year","Country","ImportsPct")]
-
-data.world.byyear <- subset(data.world.byyear,Country=="WorldTotal")
-data.world.exports <- data.world.byyear[,c("SITC","Year","ExportsPct")]
-data.world.imports <- data.world.byyear[,c("SITC","Year","ImportsPct")]
+# load pre-processed data
+data.sitc.byyear <- read.csv('processed/data_sitc_byyear.csv', stringsAsFactors=F)
+data.gdp <- read.csv('processed/data_gdp.csv', stringsAsFactors=F)
+data.world.exports <- read.csv('processed/data_world_exports.csv', stringsAsFactors=F)
+data.world.exports$SITC <- factor(data.world.exports$SITC)
+data.world.imports <- read.csv('processed/data_world_imports.csv', stringsAsFactors=F)
+data.world.imports$SITC <- factor(data.world.imports$SITC)
+data.countries.exports <- read.csv('processed/data_countries_exports.csv', stringsAsFactors=F)
+data.countries.imports <- read.csv('processed/data_countries_imports.csv', stringsAsFactors=F)
 
 # base world map
 mp <- NULL
@@ -83,7 +54,7 @@ tradeData <- function (year,relative,sitc.codes) {
 
 # output the map with countries shaded appropriately
 tradeMap <- function (mapData, year, relative) {
-  title <- paste("U.S. Trade Deficits, ", year[1], "-", year[2], sep="")
+  title <- paste("U.S. Trade Deficits (% of GDP), ", year[1], "-", year[2], sep="")
   if (relative == "Chg") {
     priors = c(year[1] - 1- (year[2] - year[1]), year[1] - 1)
     title <- paste("Change in ",title," vs. ",priors[1],"-",priors[2],sep="")
@@ -95,9 +66,11 @@ tradeMap <- function (mapData, year, relative) {
   mp <- mp + guides(fill = guide_colorbar(barwidth = 30, barheight = 1.5))
   mp <- mp + coord_equal()
   mp <- mp + borders("world", colour="black")
-  mp <- mp + ggtitle(title) + theme(plot.title = element_text(size=24, face="bold"))
+  mp <- mp + ggtitle(title) + theme(plot.title = element_text(size=24, face="bold", hjust=0.5))
   return(mp)
 }
+
+#tradeMap(tradeData(c(2012,2016),"GDP",seq(0,9,1)),c(2012,2016),"GDP")
 
 shinyServer(function(input, output, session) {
   
@@ -134,11 +107,11 @@ shinyServer(function(input, output, session) {
   
   output$deficit <- renderPlot({
     ggplot() + 
-      geom_bar(data = worldExports(), aes(x=Year, y=-1*ExportsPct, fill=SITC),stat = "identity") +
-      geom_bar(data = worldImports(), aes(x=Year, y=ImportsPct, fill=SITC),stat = "identity") +
+      geom_bar(data = worldExports(), aes(x=factor(Year), y=-1*ExportsPct, fill=SITC),stat = "identity") +
+      geom_bar(data = worldImports(), aes(x=factor(Year), y=ImportsPct, fill=SITC),stat = "identity") +
       scale_fill_brewer(type = "qual", palette = "Paired") + 
       scale_y_continuous(name="% of GDP", labels = scales::percent, limits=c(-0.15,0.15)) + 
-      scale_x_discrete(breaks = seq(1996, 2016, by = 2))
+      scale_x_discrete(name='Year', breaks = seq(1996, 2016, by = 2))
   })
   
   output$country <- renderPlot({
@@ -154,6 +127,7 @@ shinyServer(function(input, output, session) {
   })
   
   output$map <- renderPlot({ 
+
     tradeMap(dataInput(), input$year, input$relative)
   })
   
@@ -195,8 +169,9 @@ shinyServer(function(input, output, session) {
   # })
   
   output$table <- DT::renderDataTable({
-    datatable(dataOutput(), selection='single',rownames=F, caption='Click a country to drill down',
-              options=list(searching=F,pageLength=20,paging=F,order=list(list(2,'desc')))) %>% 
+
+    datatable(dataOutput(), selection='single',rownames=F, 
+              options=list(searching=F,pageLength=20,paging=F,order=list(list(1,'desc')))) %>% 
       formatPercentage('Change', 2) %>% 
       formatPercentage('% of GDP',2) %>% 
       formatPercentage('Prior',2) %>%
