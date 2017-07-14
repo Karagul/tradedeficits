@@ -2,6 +2,7 @@
 Interactive R Shiny app exploring the US trade balance with other countries over time, 1998-present 
 
 Developer: Dave Fitzpatrick
+
 Live URL: https://tradetracker.shinyapps.io/ustrade/
 
 Overview: This app explores the trade balance between the U.S. and it's top trade partners from 1998-present. The user can investigate trade balance by year, by product category, observe trends over time, and visualize these trends on a map.
